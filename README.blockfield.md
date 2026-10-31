@@ -18,6 +18,10 @@ Patched build of [Raknetify](https://github.com/RelativityMC/raknetify)
   api.papermc.io v2, which Paper sunset; the exact build is fetched from
   its content-addressed fill-API object URL with a pinned SHA-256
   (compile input only, never bundled into the plugin jar).
+- Port patch: `patches/0003-velocity-workshop-port.patch` — optional second
+  RakNet UDP port `raknetify.velocity.workshopPort`, bound like the override
+  port (Blockfield routes the Workshop profile by inbound port); unset
+  disables it.
 - Applied by CI at build time; the checked-in source tree is pristine
   upstream. CI builds `:common:build :fabric:build :velocity:build`
   (bungee skipped: dead snapshot host, jar unshipped).

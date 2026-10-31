@@ -1,0 +1,95 @@
+Subject: [PATCH] Velocity: optional second RakNet port for the Workshop profile
+
+Upstream binds a single RakNet UDP port (raknetify.velocity.portOverride).
+Blockfield routes the Workshop profile by inbound RakNet port, so the proxy
+needs a second listener: raknetify.velocity.workshopPort is bound the same
+way (one server per local interface address, same pipeline), unset disables
+it. Applies to upstream 76ab30a11a786daafb94c4ef95de457158cf80ce.
+---
+diff --git a/velocity/src/main/java/com/ishland/raknetify/velocity/init/VelocityRaknetifyServer.java b/velocity/src/main/java/com/ishland/raknetify/velocity/init/VelocityRaknetifyServer.java
+index 9817ff5..bf5e43d 100644
+--- a/velocity/src/main/java/com/ishland/raknetify/velocity/init/VelocityRaknetifyServer.java
++++ b/velocity/src/main/java/com/ishland/raknetify/velocity/init/VelocityRaknetifyServer.java
+@@ -57,6 +57,12 @@ public class VelocityRaknetifyServer {
+ 
+     private static final int portOverride = Integer.getInteger("raknetify.velocity.portOverride", -1);
+ 
++    /**
++     * Optional second RakNet UDP port (Blockfield: Workshop profile). Bound the same way as
++     * {@link #portOverride}, one server per local interface address; unset disables it.
++     */
++    private static final int workshopPort = Integer.getInteger("raknetify.velocity.workshopPort", -1);
++
+     private static final Method INIT_CHANNEL;
+ 
+     static {
+@@ -79,7 +85,7 @@ public class VelocityRaknetifyServer {
+                         final InetSocketAddress address = currentServerAddress;
+                         if (address != null && address.getAddress().isAnyLocalAddress()) {
+                             if (event.added()) {
+-                                startServer(new InetSocketAddress(event.address(), address.getPort()));
++                                startAll(new InetSocketAddress(event.address(), address.getPort()));
+                             } else {
+                                 synchronized (channels) {
+                                     final ObjectIterator<ChannelFuture> iterator = channels.iterator();
+@@ -112,7 +118,7 @@ public class VelocityRaknetifyServer {
+                 for (NetworkInterface networkInterface : NetworkInterface.networkInterfaces().toList()) {
+                     for (InetAddress inetAddress : networkInterface.inetAddresses().toList()) {
+                         try {
+-                            startServer(new InetSocketAddress(inetAddress, address.getPort()));
++                            startAll(new InetSocketAddress(inetAddress, address.getPort()));
+                         } catch (Throwable t) {
+                             RaknetifyVelocityPlugin.LOGGER.error("Failed to start raknetify server", t);
+                         }
+@@ -122,11 +128,31 @@ public class VelocityRaknetifyServer {
+                 throw new RuntimeException("Failed to start raknetify server", t);
+             }
+         } else {
+-            startServer(address);
++            startAll(address);
++        }
++    }
++
++    private static boolean hasWorkshopPort() {
++        return workshopPort > 0 && workshopPort < 65535;
++    }
++
++    private static void startAll(InetSocketAddress address) {
++        startServer(address);
++        if (hasWorkshopPort()) {
++            try {
++                startServerRaw(new InetSocketAddress(address.getAddress(), workshopPort));
++            } catch (Throwable t) {
++                RaknetifyVelocityPlugin.LOGGER.error("Failed to start raknetify workshop server", t);
++            }
+         }
+     }
+ 
+     private static void startServer(InetSocketAddress address) {
++        final boolean hasPortOverride = portOverride > 0 && portOverride < 65535;
++        startServerRaw(hasPortOverride ? new InetSocketAddress(address.getAddress(), portOverride) : address);
++    }
++
++    private static void startServerRaw(InetSocketAddress actualAddress) {
+         try {
+             final ConnectionManager cm = (ConnectionManager) accessible(VelocityServer.class.getDeclaredField("cm")).get(RaknetifyVelocityPlugin.PROXY);
+             final Object transportType = accessible(ConnectionManager.class.getDeclaredField("transportType")).get(cm);
+@@ -135,9 +161,6 @@ public class VelocityRaknetifyServer {
+             final EventLoopGroup bossGroup = (EventLoopGroup) accessible(ConnectionManager.class.getDeclaredField("bossGroup")).get(cm);
+             final EventLoopGroup workerGroup = (EventLoopGroup) accessible(ConnectionManager.class.getDeclaredField("workerGroup")).get(cm);
+ 
+-            final boolean hasPortOverride = portOverride > 0 && portOverride < 65535;
+-            InetSocketAddress actualAddress = hasPortOverride ? new InetSocketAddress(address.getAddress(), portOverride) : address;
+-
+             synchronized (channels) {
+                 for (ChannelFuture future : channels) {
+                     if (future.channel().localAddress().equals(actualAddress)) return;
+@@ -169,7 +192,7 @@ public class VelocityRaknetifyServer {
+ 
+         } catch (Throwable t) {
+             if (t instanceof IOException) {
+-                RaknetifyVelocityPlugin.LOGGER.error("Raknetify server failed to start on {}: {}", address, t.getMessage());
++                RaknetifyVelocityPlugin.LOGGER.error("Raknetify server failed to start on {}: {}", actualAddress, t.getMessage());
+                 return;
+             }
+             throw new RuntimeException("Failed to start Raknetify server", t);
