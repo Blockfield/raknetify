@@ -1,0 +1,26 @@
+Subject: [PATCH] Release SYNC FrameData in SynchronizationLayer.channelRead
+
+Upstream SynchronizationLayer.channelRead consumes each 0xFC SYNC
+FrameData and returns without releasing it (only the derived ByteBuf
+is released), tripping Netty paranoid leak detection once per received
+SYNC. Mirrors MetricsSynchronizationHandler, which releases its
+FrameData in the same situation. Tracked upstream; drop this patch
+once upstream ships the fix.
+
+Applies to upstream 76ab30a11a786daafb94c4ef95de457158cf80ce.
+---
+ .../raknetify/common/connection/SynchronizationLayer.java        | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/common/src/main/java/com/ishland/raknetify/common/connection/SynchronizationLayer.java b/common/src/main/java/com/ishland/raknetify/common/connection/SynchronizationLayer.java
+index 4eec8dd..df6064d 100644
+--- a/common/src/main/java/com/ishland/raknetify/common/connection/SynchronizationLayer.java
++++ b/common/src/main/java/com/ishland/raknetify/common/connection/SynchronizationLayer.java
+@@ -200,6 +200,7 @@ public class SynchronizationLayer extends ChannelDuplexHandler {
+                     FIELD_RELIABILITY_LAST_RECEIVED_SEQ_ID.set(this.reliabilityHandler, seqId);
+                 } finally {
+                     byteBuf.release();
++                    packet.release();
+                 }
+             }
+             return;
