@@ -52,7 +52,7 @@ jobs:
       - name: Bytecode check (patched channelRead releases FrameData)
         run: |
           set -euo pipefail
-          jar=$(ls common/build/libs/raknetify-common-*.jar | grep -v -e sources -e javadoc | head -1)
+          jar=$(ls common/build/libs/common-*.jar | grep -v -e sources -e javadoc | head -1)
           tmp=$(mktemp -d)
           unzip -q "$jar" 'com/ishland/raknetify/common/connection/SynchronizationLayer.class' -d "$tmp"
           javap -c -p "$tmp/com/ishland/raknetify/common/connection/SynchronizationLayer.class" > "$tmp/sync.txt"
