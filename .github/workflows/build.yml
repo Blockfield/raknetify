@@ -42,8 +42,13 @@ jobs:
           git apply --check patches/*.patch
           git apply --stat patches/*.patch
           git apply patches/*.patch
+          # Commit the applied tree so the build version is clean and
+          # deterministic (upstream derives it from `git describe`).
+          git -c user.name=ci -c user.email=ci@localhost commit -qam "Apply patches for CI build"
+      # Builds only the shipped modules: bungee is skipped (its BungeeCord
+      # snapshot host is dead and we do not ship a bungee jar).
       - name: Build
-        run: ./gradlew build
+        run: ./gradlew :common:build :fabric:build :velocity:build
       - name: Bytecode check (patched channelRead releases FrameData)
         run: |
           set -euo pipefail
